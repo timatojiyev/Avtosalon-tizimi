@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block title %}So'rov izi{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Taqsimlangan iz: <span class="mono">{{ request_id }}</span></h1><p>{{ spans|length }} span · {{ spans|map(attribute='service')|unique|list|length }} servis · jami {{ total }} ms. Har bir servis so'rovni o'z <code>/traces</code> jurnaliga yozadi; web ularni <code>X-Request-ID</code> bo'yicha birlashtiradi.</p></div>
+<a class="btn secondary" href="{{ url_for('ops') }}">← Kuzatuv</a></div>
+<section class="card card-body wf">
+  <div class="wf-row" style="font-weight:600;color:var(--text-2)"><span>Servis · so'rov</span><span class="row between small"><span>0 ms</span><span>{{ (total/2)|round(1) }} ms</span><span>{{ total }} ms</span></span><span class="num">ms</span></div>
+  {% for s in spans %}
+  <div class="wf-row">
+    <span><span class="wf-svc">{{ s.service }}</span><span class="badge {{ 'danger' if s.status >= 500 else ('warning' if s.status >= 400 else 'success') }}">{{ s.status }}</span>
+      <div class="mono small faint" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.method }} {{ s.path }}{% if s.parent %} ← {{ s.parent }}{% endif %}</div></span>
+    <div class="lane"><div class="span {{ 'e' if s.status >= 500 }}" style="left:{{ s.offset_pct }}%;width:{{ s.width_pct }}%" title="+{{ s.offset_ms }} ms"></div></div>
+    <span class="num">{{ s.ms }}</span>
+  </div>{% endfor %}
+</section>
+{% endblock %}

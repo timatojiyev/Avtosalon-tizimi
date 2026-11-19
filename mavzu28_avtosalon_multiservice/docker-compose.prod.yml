@@ -1,0 +1,30 @@
+# Production qo'shimchalari:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Resurs cheklovlari, xavfsizlik (read-only FS, cap_drop, no-new-privileges), log rotatsiyasi, demo ma'lumotsiz.
+x-hardening: &hardening
+  restart: always
+  read_only: true
+  tmpfs: ["/tmp"]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
+x-limits-small: &limits-small
+  deploy:
+    resources:
+      limits: { cpus: "0.50", memory: 256M }
+      reservations: { memory: 128M }
+
+services:
+  car-service:         { <<: [*hardening, *limits-small], environment: { SEED_DEMO_DATA: "0" } }
+  customer-service:    { <<: [*hardening, *limits-small], environment: { SEED_DEMO_DATA: "0" } }
+  financing-service:   { <<: [*hardening, *limits-small] }
+  sales-service:       { <<: [*hardening, *limits-small] }
+  notification-worker: { <<: [*hardening, *limits-small] }
+  web:                 { <<: [*hardening, *limits-small] }
+  gateway:
+    restart: always
+    logging: { driver: json-file, options: { max-size: "10m", max-file: "5" } }
+    deploy: { resources: { limits: { cpus: "0.50", memory: 128M } } }

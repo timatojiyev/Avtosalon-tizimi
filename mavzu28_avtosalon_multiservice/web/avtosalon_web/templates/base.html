@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Avtosalon{% endblock %} · Avtosalon Tizimi</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <style>:root{--accent:#c2410c;--accent-600:#9a3412;--accent-50:#fff7ed;--accent-100:#ffedd5}
+    .svc{border-top:4px solid var(--border-strong)}.svc.up{border-top-color:var(--success)}.svc.down{border-top-color:var(--danger)}
+    .topo{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;text-align:center}
+    .box{border:1px solid var(--border);border-radius:10px;padding:.7rem;background:var(--surface);font-size:.85rem}
+    .box b{display:block;font-size:.92rem}.box.svcb{border-left:4px solid var(--accent)}.box.db{border-left:4px solid #2563eb;background:#eff6ff}
+    .box.web{border-left:4px solid #7c3aed;background:#f5f3ff;grid-column:1/-1}
+    .arrow{grid-column:1/-1;color:var(--text-3);font-size:.8rem}
+    .topbar .inner{gap:1rem}.nav{flex-wrap:nowrap}.nav a{padding:.45rem .55rem;font-size:.86rem;white-space:nowrap}.brand small{display:none}
+  </style>
+</head>
+<body>
+<header class="topbar"><div class="inner">
+  <a class="brand" href="{{ url_for('dashboard') }}"><span class="brand-mark">A</span><span>Avtosalon Tizimi<small>5 servis · gateway · Redis Streams</small></span></a>
+  <nav class="nav">
+    <a href="{{ url_for('dashboard') }}" class="{{ 'active' if active == 'dashboard' }}">Panel</a>
+    <a href="{{ url_for('cars_page') }}" class="{{ 'active' if active == 'cars' }}">Avtomobillar</a>
+    <a href="{{ url_for('customers_page') }}" class="{{ 'active' if active == 'customers' }}">Mijozlar</a>
+    <a href="{{ url_for('sales_page') }}" class="{{ 'active' if active == 'sales' }}">Sotuvlar</a>
+    <a href="{{ url_for('financing_page') }}" class="{{ 'active' if active == 'financing' }}">Kreditlar</a>
+    <a href="{{ url_for('events_page') }}" class="{{ 'active' if active == 'events' }}">Hodisalar</a>
+    <a href="{{ url_for('architecture') }}" class="{{ 'active' if active == 'architecture' }}">Arxitektura</a>
+  </nav>
+  <span class="spacer"></span><span class="lab-chip">{% block chip %}Mavzu №28{% endblock %}</span>
+</div></header>
+<main class="container">
+  {% with messages = get_flashed_messages(with_categories=true) %}{% for cat, m in messages %}<div class="alert {{ cat }}">{{ m }}</div>{% endfor %}{% endwith %}
+  {% if error %}<div class="alert warning">⚠ {{ error }}</div>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+<footer class="foot"><div class="inner"><span>nginx gateway → web → 4 servis (o'z PostgreSQL bazalari) · sales-service → Redis Streams → notification-worker</span><span>{{ request.headers.get('X-Request-ID', '') }}</span></div></footer>
+{% block scripts %}{% endblock %}
+</body></html>

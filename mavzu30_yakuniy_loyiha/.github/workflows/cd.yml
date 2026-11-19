@@ -1,0 +1,185 @@
+# =====================================================================
+#  CD — CI muvaffaqiyatli tugagach:
+#    build & push (GHCR) → xavfsizlik skaneri (Trivy) → staging'ga deploy (main)
+#                                                     → production'ga deploy (v* teg, qo'lda tasdiqlash)
+#
+#  Kerakli GitHub sozlamalari (Settings → Environments):
+#    staging:    secrets  DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY;  vars  DEPLOY_PATH, PUBLIC_URL
+#    production: xuddi shunday + "Required reviewers" (qo'lda tasdiqlash)
+# =====================================================================
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Qaysi muhitga deploy"
+        type: choice
+        options: [staging, production]
+        default: staging
+
+concurrency:
+  group: cd-${{ github.event.workflow_run.head_branch || github.ref }}
+  cancel-in-progress: false            # deploy'ni yarim yo'lda to'xtatmaymiz
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
+jobs:
+  # ------------------------------------------------------------------ #
+  prepare:
+    name: Versiya va muhitni aniqlash
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' &&
+       (github.event.workflow_run.head_branch == 'main' || startsWith(github.event.workflow_run.head_branch, 'v')))
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      sha: ${{ steps.v.outputs.sha }}
+      registry: ${{ steps.v.outputs.registry }}
+      environment: ${{ steps.v.outputs.environment }}
+    steps:
+      - id: v
+        env:
+          REF: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          INPUT_ENV: ${{ inputs.environment }}
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "registry=ghcr.io/${owner}/avtosalon" >> "$GITHUB_OUTPUT"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          if [[ "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "tag=${REF#v}" >> "$GITHUB_OUTPUT";  echo "environment=production" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=sha-${SHA::7}" >> "$GITHUB_OUTPUT"; echo "environment=${INPUT_ENV:-staging}" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ------------------------------------------------------------------ #
+  build:
+    name: Build & push — ${{ matrix.image }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        include:
+          - { image: car-service,         dockerfile: services/car-service/Dockerfile }
+          - { image: customer-service,    dockerfile: services/customer-service/Dockerfile }
+          - { image: sales-service,       dockerfile: services/sales-service/Dockerfile }
+          - { image: financing-service,   dockerfile: services/financing-service/Dockerfile }
+          - { image: notification-worker, dockerfile: services/notification-worker/Dockerfile }
+          - { image: web,                 dockerfile: web/Dockerfile }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ needs.prepare.outputs.registry }}/${{ matrix.image }}
+          tags: |
+            type=raw,value=${{ needs.prepare.outputs.tag }}
+            type=raw,value=latest,enable=${{ needs.prepare.outputs.environment == 'production' }}
+            type=raw,value=staging,enable=${{ needs.prepare.outputs.environment == 'staging' }}
+      - name: Build va push (GitHub Actions kesh bilan)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_VERSION=${{ needs.prepare.outputs.tag }}
+            GIT_SHA=${{ needs.prepare.outputs.sha }}
+            BUILD_DATE=${{ github.event.workflow_run.updated_at || github.event.repository.updated_at }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          provenance: true
+          sbom: true
+
+  # ------------------------------------------------------------------ #
+  scan:
+    name: Xavfsizlik skaneri — ${{ matrix.image }}
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [car-service, customer-service, sales-service, financing-service, notification-worker, web]
+    steps:
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ needs.prepare.outputs.registry }}/${{ matrix.image }}:${{ needs.prepare.outputs.tag }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"                 # CRITICAL/HIGH zaiflik bo'lsa deploy to'xtaydi
+          format: sarif
+          output: trivy-${{ matrix.image }}.sarif
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-${{ matrix.image }}.sarif
+          category: trivy-${{ matrix.image }}
+
+  # ------------------------------------------------------------------ #
+  deploy:
+    name: Deploy → ${{ needs.prepare.outputs.environment }}
+    needs: [prepare, build, scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: ${{ needs.prepare.outputs.environment }}     # production — qo'lda tasdiqlash talab qilinadi
+      url: ${{ vars.PUBLIC_URL }}
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      REGISTRY: ${{ needs.prepare.outputs.registry }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/avtosalon' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - name: SSH sozlash
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+      - name: Serverni known_hosts'ga qo'shish
+        run: ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+      - name: Deploy fayllarini nusxalash
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "mkdir -p $DEPLOY_PATH/gateway/templates $DEPLOY_PATH/scripts $DEPLOY_PATH/deploy"
+          scp docker-compose.yml docker-compose.prod.yml ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:$DEPLOY_PATH/
+          scp gateway/nginx.conf ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:$DEPLOY_PATH/gateway/
+          scp gateway/templates/*.template ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:$DEPLOY_PATH/gateway/templates/
+          scp scripts/*.sh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:$DEPLOY_PATH/scripts/
+          scp deploy/deploy.sh deploy/rollback.sh deploy/docker-compose.deploy.yml \
+              ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:$DEPLOY_PATH/deploy/
+      - name: Deploy (health check + avtomatik rollback)
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            "cd $DEPLOY_PATH && echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin \
+             && REGISTRY=$REGISTRY bash deploy/deploy.sh $TAG"
+      - name: Xulosa
+        if: always()
+        run: |
+          {
+            echo "### Deploy: ${{ needs.prepare.outputs.environment }}"
+            echo "- versiya: \`$TAG\`"
+            echo "- commit: \`${{ needs.prepare.outputs.sha }}\`"
+            echo "- holat: ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"

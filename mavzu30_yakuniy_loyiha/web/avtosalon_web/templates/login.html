@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kirish · Avtosalon Tizimi</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='final.css') }}"></head>
+<body>
+<div class="login-wrap">
+  <section class="login-art">
+    <div class="row" style="gap:.6rem"><span class="brand-mark">A</span><b>Avtosalon Tizimi</b></div>
+    <div>
+      <h1>Avtosalon savdosini boshqarish platformasi</h1>
+      <ul>
+        <li>5 ta mikroservis, har biri o'z bazasi bilan</li>
+        <li>Sotuv sagasi va avtomatik kompensatsiya</li>
+        <li>Redis Streams orqali hodisalar</li>
+        <li>Metrikalar, taqsimlangan iz, chaos sinovi</li>
+        <li>CI/CD: test → build → skaner → deploy → rollback</li>
+      </ul>
+    </div>
+    <span class="small" style="color:#a8a29e">Yakuniy loyiha · Mavzu №30 · v{{ APP_VERSION }}</span>
+  </section>
+  <section class="login-form">
+    <form class="card" method="post" autocomplete="on">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="next" value="{{ next }}">
+      <div class="card-head"><h2>Tizimga kirish</h2></div>
+      <div class="card-body">
+        {% with messages = get_flashed_messages(with_categories=true) %}{% for cat, m in messages %}<div class="alert {{ cat }}">{{ m }}</div>{% endfor %}{% endwith %}
+        <div class="field"><label for="login">Login</label><input class="input" id="login" name="login" required autofocus autocomplete="username"></div>
+        <div class="field"><label for="password">Parol</label><input class="input" id="password" type="password" name="password" required autocomplete="current-password"></div>
+        <button class="btn" style="width:100%">Kirish</button>
+        {% if demo %}
+        <div class="divider"></div>
+        <div class="small muted" style="margin-bottom:.4rem">Demo foydalanuvchilar (bosing — maydonlar to'ladi):</div>
+        <table class="table small"><tbody>
+          {% for login, pw, role in [('admin', 'admin123', 'admin'), ('menejer', 'menejer123', 'menejer'), ('kredit', 'kredit123', 'kredit')] %}
+          <tr style="cursor:pointer" onclick="login.value='{{ login }}';password.value='{{ pw }}'"><td class="mono">{{ login }}</td><td class="mono">{{ pw }}</td><td>{{ roles[role].title }}</td></tr>
+          {% endfor %}</tbody></table>
+        {% endif %}
+      </div>
+    </form>
+  </section>
+</div>
+</body></html>

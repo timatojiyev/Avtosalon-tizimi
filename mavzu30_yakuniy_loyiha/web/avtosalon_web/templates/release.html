@@ -1,0 +1,45 @@
+{% extends "base.html" %}{% block title %}CI/CD va reliz{% endblock %}
+{% block content %}
+<style>.pipe{display:flex;gap:.4rem;align-items:stretch;flex-wrap:wrap}.stage{flex:1;min-width:120px;border:1px solid var(--border);border-radius:10px;padding:.65rem .75rem;background:var(--surface);font-size:.82rem}
+.stage b{display:block;font-size:.9rem;margin-bottom:.2rem}.stage.ci{border-top:4px solid #2563eb}.stage.cd{border-top:4px solid var(--accent)}.stage.prod{border-top:4px solid #16a34a}.chev{align-self:center;color:var(--text-3)}</style>
+<div class="page-head"><div><h1>CI/CD pipeline va joriy reliz</h1><p>Har bir push → avtomatik tekshiruv; <code>main</code> → staging; <code>v*</code> teg → production (qo'lda tasdiqlash bilan).</p></div>
+  <span class="badge {{ 'success' if consistent else 'warning' }}" style="font-size:.85rem;padding:.35rem .8rem">{{ '✓ Barcha servislar bir xil versiyada' if consistent else '⚠ Versiyalar har xil' }}</span></div>
+
+<section class="card card-body" style="margin-bottom:1rem"><h3 style="margin-bottom:.75rem">Pipeline bosqichlari</h3>
+<div class="pipe">
+  <div class="stage ci"><b>1. Lint</b>ruff · hadolint · compose config</div><span class="chev">›</span>
+  <div class="stage ci"><b>2. Test</b>pytest · Py 3.11/3.12 · coverage ≥ 75 %</div><span class="chev">›</span>
+  <div class="stage ci"><b>3. Integratsiya</b>compose up · wait-healthy · smoke test</div><span class="chev">›</span>
+  <div class="stage cd"><b>4. Build & push</b>6 image → GHCR · kesh · SBOM</div><span class="chev">›</span>
+  <div class="stage cd"><b>5. Skaner</b>Trivy · CRITICAL/HIGH → stop</div><span class="chev">›</span>
+  <div class="stage cd"><b>6. Staging</b>main branch · avtomatik</div><span class="chev">›</span>
+  <div class="stage prod"><b>7. Production</b>v* teg · qo'lda tasdiqlash · auto-rollback</div>
+</div></section>
+
+<section class="card" style="margin-bottom:1rem"><div class="card-head"><h2>Ishlab turgan versiyalar</h2><span class="small muted">har bir servisning <code>/health</code> javobidan</span></div>
+<div class="table-wrap"><table class="table"><thead><tr><th>Servis</th><th>Versiya</th><th>Commit</th><th>Build vaqti</th><th>Muhit</th><th>Konteyner</th></tr></thead><tbody>
+  {% for s in services %}<tr><td><b>{{ s.name }}</b></td>
+    {% if s.error %}<td colspan="5" class="small" style="color:var(--danger)">{{ s.error }}</td>
+    {% else %}<td><span class="badge accent mono">{{ s.version }}</span></td><td class="mono small">{{ s.git_sha }}</td><td class="small">{{ s.build_date }}</td>
+      <td><span class="badge {{ 'success' if s.environment == 'production' else 'info' }}">{{ s.environment }}</span></td><td class="mono small">{{ s.instance }}</td>{% endif %}</tr>{% endfor %}
+  <tr><td><b>web</b></td><td><span class="badge accent mono">{{ web_info.version }}</span></td><td class="mono small">{{ web_info.git_sha }}</td><td class="small">{{ web_info.build_date }}</td>
+    <td><span class="badge {{ 'success' if web_info.environment == 'production' else 'info' }}">{{ web_info.environment }}</span></td><td></td></tr>
+</tbody></table></div></section>
+
+<div class="grid grid-2">
+  <div class="card card-body"><h3>Yangi reliz chiqarish</h3>
+<pre>git checkout main && git pull
+# CHANGELOG.md ni yangilang
+git tag -a v1.1.0 -m "v1.1.0: kredit kalkulyatori"
+git push origin v1.1.0
+# → CI → build (1.1.0) → skaner → production
+#   GitHub'da "Review deployments" → Approve</pre></div>
+  <div class="card card-body"><h3>Rollback</h3>
+<pre># Avtomatik: health/smoke test yiqilsa deploy.sh
+# oldingi versiyani o'zi qaytaradi.
+
+# Qo'lda (GitHub): Actions → Rollback → Run workflow
+# Qo'lda (serverda):
+cd /opt/avtosalon && bash deploy/rollback.sh 1.0.0</pre></div>
+</div>
+{% endblock %}

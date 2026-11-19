@@ -1,0 +1,152 @@
+# =====================================================================
+#  Avtosalon Tizimi — Docker Compose
+#  Laboratoriya ishi №27, 15-topshiriq:
+#    4 ta servis: car-service, customer-service, sales-service, financing-service
+#    Har birining o'z database'i (database-per-service): 4 ta alohida PostgreSQL
+#
+#  Ishga tushirish:   docker compose up -d --build
+#  Panel:             http://localhost:8080
+# =====================================================================
+name: avtosalon
+
+# ---------- Umumiy shablonlar (YAML anchor) ----------
+x-postgres: &postgres
+  image: postgres:16-alpine
+  restart: unless-stopped
+  networks: [data]
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+    interval: 5s
+    timeout: 3s
+    retries: 10
+    start_period: 10s
+
+x-service: &service
+  restart: unless-stopped
+  networks: [backend, data]
+  healthcheck:
+    # /ready — servis VA uning bazasi tayyor bo'lsa 200 qaytaradi
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"]
+    interval: 10s
+    timeout: 5s
+    retries: 6
+    start_period: 20s
+
+services:
+  # ======================= Ma'lumotlar bazalari =======================
+  car-db:
+    <<: *postgres
+    environment:
+      POSTGRES_DB: car_db
+      POSTGRES_USER: ${CAR_DB_USER:-car_user}
+      POSTGRES_PASSWORD: ${CAR_DB_PASSWORD:-car_secret}
+    volumes: [car_data:/var/lib/postgresql/data]
+
+  customer-db:
+    <<: *postgres
+    environment:
+      POSTGRES_DB: customer_db
+      POSTGRES_USER: ${CUSTOMER_DB_USER:-customer_user}
+      POSTGRES_PASSWORD: ${CUSTOMER_DB_PASSWORD:-customer_secret}
+    volumes: [customer_data:/var/lib/postgresql/data]
+
+  sales-db:
+    <<: *postgres
+    environment:
+      POSTGRES_DB: sales_db
+      POSTGRES_USER: ${SALES_DB_USER:-sales_user}
+      POSTGRES_PASSWORD: ${SALES_DB_PASSWORD:-sales_secret}
+    volumes: [sales_data:/var/lib/postgresql/data]
+
+  financing-db:
+    <<: *postgres
+    environment:
+      POSTGRES_DB: financing_db
+      POSTGRES_USER: ${FINANCING_DB_USER:-financing_user}
+      POSTGRES_PASSWORD: ${FINANCING_DB_PASSWORD:-financing_secret}
+    volumes: [financing_data:/var/lib/postgresql/data]
+
+  # ============================ Servislar ============================
+  car-service:
+    <<: *service
+    build: { context: ., dockerfile: services/car-service/Dockerfile }
+    image: avtosalon/car-service:${TAG:-latest}
+    environment:
+      DATABASE_URL: postgresql://${CAR_DB_USER:-car_user}:${CAR_DB_PASSWORD:-car_secret}@car-db:5432/car_db
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-1}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports: ["8001:8000"]
+    depends_on:
+      car-db: { condition: service_healthy }
+
+  customer-service:
+    <<: *service
+    build: { context: ., dockerfile: services/customer-service/Dockerfile }
+    image: avtosalon/customer-service:${TAG:-latest}
+    environment:
+      DATABASE_URL: postgresql://${CUSTOMER_DB_USER:-customer_user}:${CUSTOMER_DB_PASSWORD:-customer_secret}@customer-db:5432/customer_db
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-1}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports: ["8002:8000"]
+    depends_on:
+      customer-db: { condition: service_healthy }
+
+  financing-service:
+    <<: *service
+    build: { context: ., dockerfile: services/financing-service/Dockerfile }
+    image: avtosalon/financing-service:${TAG:-latest}
+    environment:
+      DATABASE_URL: postgresql://${FINANCING_DB_USER:-financing_user}:${FINANCING_DB_PASSWORD:-financing_secret}@financing-db:5432/financing_db
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports: ["8004:8000"]
+    depends_on:
+      financing-db: { condition: service_healthy }
+
+  sales-service:
+    <<: *service
+    build: { context: ., dockerfile: services/sales-service/Dockerfile }
+    image: avtosalon/sales-service:${TAG:-latest}
+    environment:
+      DATABASE_URL: postgresql://${SALES_DB_USER:-sales_user}:${SALES_DB_PASSWORD:-sales_secret}@sales-db:5432/sales_db
+      CAR_SERVICE_URL: http://car-service:8000
+      CUSTOMER_SERVICE_URL: http://customer-service:8000
+      FINANCING_SERVICE_URL: http://financing-service:8000
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports: ["8003:8000"]
+    depends_on:
+      sales-db: { condition: service_healthy }
+      car-service: { condition: service_healthy }
+      customer-service: { condition: service_healthy }
+      financing-service: { condition: service_healthy }
+
+  # ======================= Boshqaruv paneli (UI) =======================
+  web:
+    build: { context: ., dockerfile: web/Dockerfile }
+    image: avtosalon/web:${TAG:-latest}
+    restart: unless-stopped
+    networks: [frontend, backend]
+    environment:
+      CAR_SERVICE_URL: http://car-service:8000
+      CUSTOMER_SERVICE_URL: http://customer-service:8000
+      SALES_SERVICE_URL: http://sales-service:8000
+      FINANCING_SERVICE_URL: http://financing-service:8000
+    ports: ["${WEB_PORT:-8080}:8000"]
+    depends_on:
+      car-service: { condition: service_healthy }
+      customer-service: { condition: service_healthy }
+      sales-service: { condition: service_healthy }
+      financing-service: { condition: service_healthy }
+
+# ============================ Tarmoqlar ============================
+networks:
+  frontend: {}              # foydalanuvchi → web
+  backend: {}               # web ↔ servislar, servislar ↔ servislar
+  data:
+    internal: true          # bazalar tashqi dunyodan yopiq; faqat servislar ulanadi
+
+# ============================== Volume'lar ===========================
+volumes:
+  car_data:
+  customer_data:
+  sales_data:
+  financing_data:

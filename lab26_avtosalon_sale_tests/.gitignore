@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+data/*.json
+data/*.db
+.coverage
+htmlcov/
+reports/

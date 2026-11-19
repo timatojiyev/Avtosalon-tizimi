@@ -1,0 +1,9 @@
+# Development sozlamalari — `docker compose up` avtomatik qo'shadi.
+# Servislar portlari xostga ochiladi (curl bilan to'g'ridan-to'g'ri sinash uchun) va loglar o'qishga qulay.
+# DIQQAT: --scale ishlatganda bu faylni chiqarib tashlang:  docker compose -f docker-compose.yml up --scale ...
+services:
+  car-service:         { ports: ["8001:8000"], environment: { LOG_FORMAT: text } }
+  customer-service:    { ports: ["8002:8000"], environment: { LOG_FORMAT: text } }
+  sales-service:       { ports: ["8003:8000"], environment: { LOG_FORMAT: text } }
+  financing-service:   { ports: ["8004:8000"], environment: { LOG_FORMAT: text } }
+  notification-worker: { ports: ["8005:8000"], environment: { LOG_FORMAT: text } }

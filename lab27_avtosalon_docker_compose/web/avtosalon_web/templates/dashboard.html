@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% block title %}Panel{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Tizim holati</h1><p>Har bir servisning <code>/health</code> (liveness) va <code>/ready</code> (DB ulanishi) endpoint'lari tekshiriladi.</p></div><a class="btn secondary" href="">↻ Yangilash</a></div>
+<div class="grid grid-4" style="margin-bottom:1rem">
+{% for h in health %}
+  <div class="card card-body svc {{ 'up' if h.up and h.ready else 'down' }}">
+    <div class="row between"><b>{{ h.name }}</b><span class="badge {{ 'success' if h.up and h.ready else 'danger' }}">{{ 'ishlayapti' if h.up and h.ready else ('DB yo\'q' if h.up else 'ishlamayapti') }}</span></div>
+    <dl class="kv small" style="margin-top:.5rem"><dt>URL</dt><dd class="mono">{{ h.url }}</dd><dt>Baza</dt><dd>{{ h.db }}</dd><dt>Versiya</dt><dd>{{ h.version }}</dd>
+      <dt>Uptime</dt><dd>{{ (h.uptime ~ ' s') if h.uptime is not none else '—' }}</dd></dl>
+    {% if h.error %}<div class="small" style="color:var(--danger);margin-top:.4rem">{{ h.error }}</div>{% endif %}
+  </div>
+{% endfor %}
+</div>
+<div class="grid grid-2">
+  <section class="card"><div class="card-head"><h2>Avtomobillar</h2><span class="small muted">car-service /stats</span></div><div class="card-body">
+    {% set total = car_stats.values()|sum(attribute='count') %}
+    {% for st in ['sotuvda', 'band', 'sotilgan'] %}{% set v = car_stats.get(st, {'count': 0, 'value': 0}) %}
+      <div style="margin-bottom:.7rem"><div class="row between small"><span><span class="badge {{ CAR_STYLE[st] }}">{{ st }}</span></span><b>{{ v.count }} ta · {{ v.value|som }}</b></div>
+      <div class="progress"><span style="width:{{ (v.count / total * 100) if total else 0 }}%"></span></div></div>{% endfor %}
+  </div></section>
+  <section class="card"><div class="card-head"><h2>Oxirgi sotuvlar</h2><a class="small" href="{{ url_for('sales_page') }}">Barchasi →</a></div>
+    <div class="table-wrap"><table class="table"><tbody>{% for s in recent %}<tr><td><a class="mono" href="{{ url_for('sale_detail', sale_id=s.id) }}">{{ s.ref }}</a></td><td>{{ s.car_title }}<div class="small faint">{{ s.customer_name }}</div></td>
+      <td><span class="badge {{ SALE_STYLE.get(s.status, '') }}">{{ s.status }}</span></td><td class="num">{{ s.price|som }}</td></tr>
+    {% else %}<tr><td><div class="empty small">Sotuv yo'q</div></td></tr>{% endfor %}</tbody></table></div></section>
+</div>
+{% endblock %}

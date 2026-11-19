@@ -1,0 +1,7 @@
+# nginx rasmiy image'i ishga tushishda bu shablonni envsubst orqali gateway.d/api-key.conf ga aylantiradi.
+# Tashqi API (/api/*) faqat to'g'ri X-API-Key sarlavhasi bilan ochiladi (integratsiyalar, smoke test).
+# Panel foydalanuvchilari API'ga emas, web (login + RBAC) orqali kiradi — ADR-0010.
+map $http_x_api_key $api_key_ok {
+  default 0;
+  "${GATEWAY_API_KEY}" 1;
+}

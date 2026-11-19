@@ -1,0 +1,31 @@
+{% extends "base.html" %}{% block title %}Arxitektura{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Ko'p servisli tizim arxitekturasi</h1><p>12 ta konteyner: gateway, web, 4 ta biznes-servis, worker, Redis va 4 ta PostgreSQL. Barchasi bitta <code>docker compose up</code> bilan ko'tariladi.</p></div></div>
+<div class="card card-body" style="margin-bottom:1rem"><div class="topo">
+  <div class="box web" style="border-left-color:#16a34a;background:#f0fdf4"><b>gateway</b> nginx :8080 → :80 · rate limit · X-Request-ID · <code>/api/*</code> marshrutlash · round-robin (scale)</div>
+  <div class="arrow">↓ frontend tarmog'i → backend tarmog'i</div>
+  <div class="box web"><b>web</b> — boshqaruv paneli (servislarni HTTP orqali chaqiradi)</div>
+  <div class="arrow">↓</div>
+  <div class="box svcb"><b>car-service</b></div><div class="box svcb"><b>customer-service</b></div><div class="box svcb"><b>sales-service</b><div class="small faint">saga · hodisalar</div></div><div class="box svcb"><b>financing-service</b></div>
+  <div class="arrow">↓ data tarmog'i (internal: true)</div>
+  <div class="box db"><b>car-db</b></div><div class="box db"><b>customer-db</b></div><div class="box db"><b>sales-db</b></div><div class="box db"><b>financing-db</b></div>
+  <div class="arrow">sales-service ─XADD─► <b>redis</b> (Stream: avtosalon.events, AOF) ─XREADGROUP─► <b>notification-worker</b> ×N (consumer group)</div>
+</div></div>
+<div class="grid grid-2" style="margin-bottom:1rem">
+  <div class="card card-body"><h3>Compose imkoniyatlari</h3><table class="table small"><tbody>
+    <tr><td><code>depends_on: service_healthy</code></td><td>to'g'ri ishga tushish tartibi: DB → servis → web → gateway</td></tr>
+    <tr><td>healthcheck</td><td>pg_isready, redis-cli ping, servis /ready, gateway</td></tr>
+    <tr><td>3 tarmoq</td><td>frontend / backend / data (bazalar tashqaridan yopiq)</td></tr>
+    <tr><td>5 volume</td><td>4 ta DB + Redis AOF — restartda ma'lumot saqlanadi</td></tr>
+    <tr><td>override fayllar</td><td><code>docker-compose.override.yml</code> (dev portlar), <code>docker-compose.prod.yml</code> (limitlar, read-only, cap_drop, log rotatsiya)</td></tr>
+    <tr><td>profiles</td><td><code>--profile tools</code>: Adminer (DB), Dozzle (loglar)</td></tr>
+    <tr><td><code>--scale</code></td><td>car-service ×3, notification-worker ×2 — nginx DNS orqali taqsimlaydi</td></tr>
+    <tr><td>YAML anchor'lar</td><td><code>x-postgres</code>, <code>x-service</code>, <code>x-common-env</code> — takrorlanishsiz</td></tr></tbody></table></div>
+  <div class="card card-body"><h3>Gateway marshrutlari</h3><table class="table small mono"><tbody>
+    <tr><td>/</td><td>web</td></tr><tr><td>/api/cars…</td><td>car-service</td></tr><tr><td>/api/customers…</td><td>customer-service</td></tr>
+    <tr><td>/api/sales…</td><td>sales-service</td></tr><tr><td>/api/financing/…</td><td>financing-service</td></tr>
+    <tr><td>/api/notifications</td><td>notification-worker</td></tr><tr><td>/api/health/&lt;servis&gt;</td><td>servis /health</td></tr>
+    <tr><td>/gateway/health</td><td>gateway o'zi</td></tr></tbody></table></div>
+</div>
+<section class="card"><div class="card-head"><h2>docker-compose.yml</h2></div><pre style="border-radius:0 0 var(--radius) var(--radius);max-height:620px">{{ compose }}</pre></section>
+{% endblock %}

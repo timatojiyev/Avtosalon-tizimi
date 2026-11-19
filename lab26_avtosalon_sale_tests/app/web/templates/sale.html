@@ -1,0 +1,67 @@
+{% extends "base.html" %}{% block title %}{{ sale.id }}{% endblock %}
+{% macro act(name, label, cls='') -%}<input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn {{ cls }}" formaction="{{ url_for('sale_action', sale_id=sale.id, action=name) }}">{{ label }}</button>{%- endmacro %}
+{% block content %}
+<div class="page-head"><div><h1>Sotuv <span class="mono">{{ sale.id }}</span></h1><p>{{ sale.car.title }} · {{ sale.customer_name }} · <span class="badge {{ STATUS_STYLE[sale.status.value] }}">{{ sale.status.label }}</span></p></div>
+  <a class="btn secondary" href="{{ url_for('index') }}">← Ro'yxat</a></div>
+
+<div class="steps" style="margin-bottom:1rem">
+  {% set order = ['boshlangan', 'kredit_kutilmoqda', 'kredit_tasdiqlangan', 'yakunlangan'] if sale.payment_method == PM.CREDIT else ['boshlangan', 'yakunlangan'] %}
+  {% set idx = order.index(sale.status.value) if sale.status.value in order else (1 if sale.status.value == 'kredit_rad_etilgan' else -1) %}
+  {% for st in order %}
+    <div class="step {{ 'done' if loop.index0 < idx or sale.status.value == 'yakunlangan' else 'now' if loop.index0 == idx else 'off' }}">
+      <span class="small faint">{{ loop.index }}-qadam</span><b>{{ {'boshlangan': 'Sotuv boshlandi', 'kredit_kutilmoqda': 'Kredit arizasi', 'kredit_tasdiqlangan': 'Kredit tasdiqlandi', 'yakunlangan': 'Sotuv yakunlandi'}[st] }}</b></div>
+  {% endfor %}
+  {% if sale.status.value in ('kredit_rad_etilgan', 'bekor_qilingan') %}<div class="step now" style="border-color:var(--danger);background:var(--danger-bg)"><span class="small faint">holat</span><b>{{ sale.status.label }}</b></div>{% endif %}
+</div>
+
+<div class="split">
+  <div class="stack">
+    {% if not sale.status.is_final %}
+    <section class="card"><div class="card-head"><h2>Keyingi amal</h2></div><div class="card-body">
+      {% if sale.status == S.INITIATED and sale.payment_method == PM.CREDIT %}
+        <form method="post" class="filters" id="fin">
+          <div class="field"><label>Muddat (oy)</label><input class="input" name="term_months" type="number" min="6" max="60" value="36"></div>
+          <div class="field"><label>Yillik foiz, %</label><input class="input" name="annual_rate" value="24"></div>
+          <div class="field"><label>Oylik to'lov (taxminiy)</label><div id="pmt" style="font-weight:700;padding:.55rem 0">—</div></div>
+          {{ act('financing', 'Kredit so\'rash') }}</form>
+      {% elif sale.status == S.FINANCING_PENDING %}
+        <p class="small muted">Bank nomidan qaror qabul qiling. Summa so'ralganidan kam bo'lsa, farq boshlang'ich to'lovga qo'shiladi.</p>
+        <form method="post" class="filters">
+          <div class="field"><label>Tasdiqlangan summa</label><input class="input" name="amount" placeholder="{{ sale.financed_amount.amount }}"></div>
+          <div class="field"><label>Foiz, %</label><input class="input" name="annual_rate" placeholder="{{ sale.credit_terms.annual_rate }}"></div>
+          <div class="field"><label>Muddat</label><input class="input" name="term_months" placeholder="{{ sale.credit_terms.term_months }}"></div>
+          {{ act('approve', '✓ Tasdiqlash') }}</form>
+        <div class="divider"></div>
+        <form method="post" class="filters"><div class="field" style="flex:1"><label>Rad etish sababi</label><input class="input" name="reason" placeholder="Kredit tarixi salbiy"></div>{{ act('reject', 'Rad etish', 'danger') }}</form>
+      {% elif sale.status == S.FINANCING_REJECTED %}
+        <div class="alert error">Kredit rad etildi: {{ sale.financing_reject_reason }}</div>
+        <form method="post">{{ act('cash', 'Naqd to\'lovga o\'tish', 'secondary') }}</form>
+      {% endif %}
+      {% if (sale.status == S.INITIATED and sale.payment_method == PM.CASH) or sale.status == S.FINANCING_APPROVED %}
+        <form method="post" class="filters"><div class="field"><label>To'langan summa (kerak: {{ sale.amount_due_at_completion|som }})</label>
+          <input class="input" name="paid" value="{{ sale.amount_due_at_completion.amount }}"></div>{{ act('complete', 'Sotuvni yakunlash') }}</form>
+      {% endif %}
+      <div class="divider"></div>
+      <form method="post" class="filters"><div class="field" style="flex:1"><label>Bekor qilish sababi</label><input class="input" name="reason" placeholder="Mijoz fikridan qaytdi"></div>{{ act('cancel', 'Sotuvni bekor qilish', 'danger') }}</form>
+    </div></section>
+    {% endif %}
+    <section class="card"><div class="card-head"><h2>Domen hodisalari</h2><span class="small muted">{{ events|length }} ta</span></div><div class="card-body">
+      <ul class="timeline">{% for e in events %}<li><code>{{ e.name }}</code> <span class="small faint">{{ e.at[11:19] }} UTC</span>
+        <div class="small muted mono">{% for k, v in e.to_dict().items() if k not in ('event', 'at', 'sale_id') %}{{ k }}={{ v }}{{ ', ' if not loop.last }}{% endfor %}</div></li>{% endfor %}</ul></div></section>
+  </div>
+  <aside class="card card-body"><h3>Shartlar</h3><dl class="kv">
+    <dt>Narx</dt><dd>{{ sale.price|som }}</dd><dt>To'lov usuli</dt><dd>{{ sale.payment_method.value }}</dd>
+    <dt>Boshlang'ich</dt><dd>{{ sale.down_payment|som }}</dd>
+    {% if sale.credit_terms %}<dt>Kredit</dt><dd>{{ sale.credit_terms.principal|som }}</dd><dt>Foiz / muddat</dt><dd>{{ sale.credit_terms.annual_rate }}% · {{ sale.credit_terms.term_months }} oy</dd>
+      <dt>Oylik to'lov</dt><dd><b>{{ sale.credit_terms.monthly_payment|som }}</b></dd><dt>Ortiqcha to'lov</dt><dd>{{ sale.credit_terms.overpayment|som }}</dd>{% endif %}
+    {% if sale.status.value == 'yakunlangan' %}<dt>To'landi</dt><dd>{{ sale.amount_paid|som }}</dd><dt>Qaytim</dt><dd>{{ sale.change|som }}</dd>{% endif %}
+    <dt>Avtomobil</dt><dd><span class="badge {{ CAR_STYLE[sale.car.status] }}">{{ sale.car.status.value }}</span></dd></dl></aside>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+(() => { const f = document.getElementById('fin'); if (!f) return; const P = {{ sale.financed_amount.amount }};
+  const upd = () => { const n = +f.term_months.value, r = parseFloat(f.annual_rate.value.replace(',', '.')) / 1200;
+    const m = !n ? 0 : (r ? P * r / (1 - Math.pow(1 + r, -n)) : P / n);
+    document.getElementById('pmt').textContent = m ? Math.round(m).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + " so'm" : '—'; };
+  f.addEventListener('input', upd); upd(); })();
+</script>{% endblock %}

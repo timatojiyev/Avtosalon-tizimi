@@ -1,0 +1,6 @@
+# Lokal ishlab chiqish va CI uchun
+Flask>=3.0,<4
+pytest>=8.0
+pytest-cov>=5.0
+ruff>=0.6
+pre-commit>=3.7

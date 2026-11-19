@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% block title %}{{ sale.ref }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Sotuv <span class="mono">{{ sale.ref }}</span></h1><p>{{ sale.car_title }} · {{ sale.customer_name }} · <span class="badge {{ SALE_STYLE.get(sale.status, '') }}">{{ sale.status }}</span></p></div><a class="btn secondary" href="{{ url_for('sales_page') }}">← Sotuvlar</a></div>
+<div class="split">
+  <div class="stack">
+    {% if sale.status in ('boshlangan', 'kredit_tasdiqlangan', 'kredit_rad_etilgan') and can('sales:write') %}
+    <section class="card"><div class="card-head"><h2>Amallar</h2></div><div class="card-body">
+      {% if sale.status in ('boshlangan', 'kredit_tasdiqlangan') %}
+      <form method="post" action="{{ url_for('sale_action', sale_id=sale.id, action='complete') }}" class="filters"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <div class="field"><label>To'langan summa (kerak: {{ sale.down_payment|som }})</label><input class="input" name="paid" value="{{ sale.down_payment }}"></div><button class="btn">Yakunlash</button></form><div class="divider"></div>{% endif %}
+      {% if sale.status == 'kredit_rad_etilgan' %}<div class="alert error">Kredit rad etildi: {{ sale.note }}</div>{% endif %}
+      <form method="post" action="{{ url_for('sale_action', sale_id=sale.id, action='cancel') }}" class="filters"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <div class="field" style="flex:1"><label>Bekor qilish sababi</label><input class="input" name="reason"></div><button class="btn danger">Bekor qilish</button></form>
+    </div></section>{% endif %}
+    {% if application %}<section class="card"><div class="card-head"><h2>Kredit arizasi (financing-service)</h2><span class="badge {{ 'success' if application.status == 'tasdiqlandi' else 'danger' }}">{{ application.status }}</span></div>
+      <div class="card-body"><dl class="kv"><dt>Summa</dt><dd>{{ application.amount|som }}</dd><dt>Muddat / foiz</dt><dd>{{ application.term_months }} oy · {{ application.annual_rate }}%</dd>
+      <dt>Oylik to'lov</dt><dd><b>{{ application.monthly_payment|som }}</b></dd><dt>Oylik daromad</dt><dd>{{ application.monthly_income|som }}</dd>
+      <dt>PTI</dt><dd>{{ application.pti }}% <span class="small faint">(ruxsat ≤ 50%)</span></dd>{% if application.reason %}<dt>Sabab</dt><dd>{{ application.reason }}</dd>{% endif %}</dl></div></section>{% endif %}
+  </div>
+  <aside class="stack">
+  <section class="card"><div class="card-head"><h2>Saga izi</h2>{% if saga.request_id and can('ops') %}<a class="small" href="{{ url_for('trace', request_id=saga.request_id) }}">Taqsimlangan iz →</a>{% endif %}</div>
+    <div class="card-body"><ol class="saga">{% for st in saga.steps %}<li class="{{ st.outcome }}"><span class="n">{{ loop.index }}</span>
+      <div><b>{{ st.step }}</b><div class="small muted"><span class="mono">{{ st.service }}</span>{% if st.detail %} · {{ st.detail }}{% endif %}</div></div>
+      <span class="small faint num">{{ st.ms }} ms</span></li>
+    {% else %}<li class="muted small">Qadamlar yozilmagan (eski sotuv)</li>{% endfor %}</ol></div></section>
+  <section class="card card-body"><h3>Ma'lumotlar (sales-db)</h3><dl class="kv small">
+    {% for k in ['ref', 'car_id', 'customer_id', 'payment_method', 'price', 'down_payment', 'financed_amount', 'monthly_payment', 'amount_paid', 'status', 'created_at', 'updated_at'] %}<dt class="mono">{{ k }}</dt><dd>{{ sale[k] if sale[k] is not none else '—' }}</dd>{% endfor %}</dl></section></aside>
+</div>
+{% endblock %}

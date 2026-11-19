@@ -1,0 +1,15 @@
+{% extends "base.html" %}{% block title %}Mijozlar{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Mijozlar</h1><p>customer-service → <code>customer-db</code></p></div></div>
+<div class="split">
+  <section class="card"><div class="table-wrap"><table class="table"><thead><tr><th>#</th><th>F.I.Sh.</th><th>Telefon</th><th>Pasport</th><th class="num">Oylik daromad</th></tr></thead><tbody>
+    {% for c in customers %}<tr><td class="muted">{{ c.id }}</td><td><b>{{ c.full_name }}</b></td><td class="mono small">{{ c.phone }}</td><td class="mono small">{{ c.passport }}</td><td class="num">{{ c.monthly_income|som }}</td></tr>
+    {% else %}<tr><td colspan="5"><div class="empty">Mijoz yo'q</div></td></tr>{% endfor %}</tbody></table></div></section>
+  <form class="card" method="post"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><div class="card-head"><h3>Yangi mijoz</h3></div><div class="card-body">
+    <div class="field"><label>F.I.Sh.</label><input class="input" name="full_name" placeholder="Sardor Aliyev"></div>
+    <div class="field"><label>Telefon</label><input class="input" name="phone" placeholder="+998 90 123 45 67"></div>
+    <div class="field"><label>Pasport</label><input class="input" name="passport" placeholder="AD1234567"></div>
+    <div class="field"><label>Oylik daromad (so'm)</label><input class="input" name="monthly_income" placeholder="15000000"><span class="help">Kredit qarori uchun kerak (PTI ≤ 50%)</span></div></div>
+    <div class="card-foot"><button class="btn" style="width:100%">Qo'shish</button></div></form>
+</div>
+{% endblock %}

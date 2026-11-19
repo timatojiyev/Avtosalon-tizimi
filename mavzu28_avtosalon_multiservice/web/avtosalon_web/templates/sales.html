@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% block title %}Sotuvlar{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Sotuvlar</h1><p>sales-service → <code>sales-db</code>; car-, customer- va financing-service'larni HTTP orqali chaqiradi.</p></div></div>
+<div class="split">
+  <section class="card"><div class="table-wrap"><table class="table"><thead><tr><th>Ref</th><th>Avtomobil</th><th>Mijoz</th><th>To'lov</th><th class="num">Narx</th><th>Holat</th></tr></thead><tbody>
+    {% for s in sales %}<tr><td><a class="mono" href="{{ url_for('sale_detail', sale_id=s.id) }}">{{ s.ref }}</a></td><td>{{ s.car_title }}</td><td>{{ s.customer_name }}</td><td>{{ s.payment_method }}</td>
+      <td class="num">{{ s.price|som }}</td><td><span class="badge {{ SALE_STYLE.get(s.status, '') }}">{{ s.status }}</span></td></tr>
+    {% else %}<tr><td colspan="6"><div class="empty"><div class="icon">🧾</div>Sotuv yo'q — o'ngdagi formadan boshlang</div></td></tr>{% endfor %}</tbody></table></div></section>
+  <form class="card" method="post" id="sf"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><div class="card-head"><h3>Yangi sotuv</h3></div><div class="card-body">
+    <div class="field"><label>Avtomobil (sotuvda)</label><select class="input" name="car_id">{% for c in cars %}<option value="{{ c.id }}" data-price="{{ c.price }}" {{ 'selected' if form.get('car_id') == c.id|string }}>{{ c.make }} {{ c.model }} — {{ c.price|som }}</option>{% endfor %}</select></div>
+    <div class="field"><label>Mijoz</label><select class="input" name="customer_id">{% for c in customers %}<option value="{{ c.id }}">{{ c.full_name }} · {{ c.monthly_income|som }}/oy</option>{% endfor %}</select></div>
+    <div class="field"><span class="label">To'lov usuli</span><div class="row"><label class="checkbox"><input type="radio" name="payment_method" value="naqd" checked> Naqd</label><label class="checkbox"><input type="radio" name="payment_method" value="kredit" {{ 'checked' if form.get('payment_method') == 'kredit' }}> Kredit</label></div></div>
+    <div id="credit"><div class="field"><label>Boshlang'ich to'lov</label><input class="input" name="down_payment" inputmode="numeric" value="{{ form.get('down_payment', '') }}"><span class="help" id="minh"></span></div>
+      <div class="grid grid-2"><div class="field"><label>Muddat (oy)</label><input class="input" name="term_months" value="{{ form.get('term_months', 36) }}"></div><div class="field"><label>Foiz, %</label><input class="input" name="annual_rate" value="{{ form.get('annual_rate', 24) }}"></div></div></div>
+  </div><div class="card-foot"><button class="btn" style="width:100%" {{ 'disabled' if not cars }}>Sotuvni boshlash</button></div></form>
+</div>
+{% endblock %}
+{% block scripts %}<script>(() => { const f = document.getElementById('sf');
+  const upd = () => { const credit = f.payment_method.value === 'kredit'; document.getElementById('credit').hidden = !credit;
+    const o = f.car_id.selectedOptions[0]; if (o) { const m = Math.ceil(+o.dataset.price * 0.2); document.getElementById('minh').textContent = 'Kamida 20%: ' + m.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + " so'm"; if (!f.down_payment.value) f.down_payment.placeholder = m; } };
+  f.addEventListener('change', upd); upd(); })();</script>{% endblock %}

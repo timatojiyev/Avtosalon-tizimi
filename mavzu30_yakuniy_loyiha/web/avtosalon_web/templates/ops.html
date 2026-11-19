@@ -1,0 +1,43 @@
+{% extends "base.html" %}{% block title %}Kuzatuv va chaos{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Kuzatuv (observability) va chaos sinovi</h1><p>Har bir servis o'z metrikalarini <code>/metrics</code> (Prometheus) va <code>/metrics.json</code> orqali beradi; har bir so'rov <code>X-Request-ID</code> bo'yicha servislar bo'ylab kuzatiladi.</p></div><a class="btn secondary" href="">↻ Yangilash</a></div>
+
+<section class="card" style="margin-bottom:1rem"><div class="card-head"><h2>Servislar metrikasi</h2><span class="small muted">jarayon ishga tushgandan beri</span></div>
+<div class="table-wrap"><table class="table"><thead><tr><th>Servis</th><th class="num">So'rovlar</th><th class="num">5xx</th><th class="num">Xato %</th><th class="num">Uptime</th><th>Eng faol endpoint (p50 / p95)</th><th>Chaos</th></tr></thead><tbody>
+{% for s in services %}{% set m = s.snap %}<tr>
+  <td><b>{{ s.name }}</b></td>
+  {% if m %}
+  <td class="num">{{ m.requests }}</td><td class="num">{{ m.errors }}</td>
+  <td class="num"><span class="badge {{ 'danger' if m.error_rate > 5 else ('warning' if m.error_rate > 0 else 'success') }}">{{ m.error_rate }}%</span></td>
+  <td class="num small">{{ m.uptime_s }} s</td>
+  <td class="small">{% for r in m.routes[:2] %}<div><span class="mono">{{ r.method }} {{ r.route }}</span> · {{ r.count }}× · {{ r.p50_ms|int }} / {{ r.p95_ms|int }} ms</div>{% else %}<span class="faint">—</span>{% endfor %}</td>
+  <td>{% if m.chaos.allowed %}
+    <form method="post" action="{{ url_for('set_chaos', name=s.name) }}" class="row" style="gap:.3rem;flex-wrap:nowrap"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <select class="input" name="mode" style="padding:.3rem .4rem;font-size:.82rem;width:auto">{% for key, label in modes.items() %}<option value="{{ key }}" {{ 'selected' if m.chaos.mode == key }}>{{ label }}</option>{% endfor %}</select>
+      <button class="btn sm {{ 'danger' if m.chaos.mode != 'off' else 'secondary' }}">Qo'llash</button></form>
+    {% else %}<span class="small faint">{{ 'BFF' if s.name == 'web' else 'production: o\'chiq' }}</span>{% endif %}</td>
+  {% else %}<td colspan="6"><span class="badge danger">javob yo'q</span></td>{% endif %}
+</tr>{% endfor %}</tbody></table></div></section>
+
+<div class="grid" style="grid-template-columns:minmax(0,3fr) minmax(0,2fr)">
+<section class="card"><div class="card-head"><h2>So'nggi taqsimlangan so'rovlar</h2><span class="small muted">≥ 2 servisdan o'tganlar</span></div>
+<div class="table-wrap"><table class="table"><thead><tr><th>Request ID</th><th>Kirish nuqtasi</th><th class="num">Servis / span</th><th class="num">Davomiylik</th></tr></thead><tbody>
+{% for r in recent %}<tr><td><a class="mono" href="{{ url_for('trace', request_id=r.request_id) }}">{{ r.request_id }}</a>{% if r.error %} <span class="badge danger">5xx</span>{% endif %}</td>
+  <td class="small"><b>{{ r.root.service }}</b> <span class="mono">{{ r.root.method }} {{ r.root.path[:46] }}</span></td><td class="num">{{ r.services }} / {{ r.spans }}</td><td class="num">{{ r.ms }} ms</td></tr>
+{% else %}<tr><td colspan="4"><div class="empty small">Hali yo'q — biror sahifani oching yoki sotuv yarating</div></td></tr>{% endfor %}</tbody></table></div></section>
+
+<aside class="card card-body"><h3>Himoyada jonli ko'rsatish: saga kompensatsiyasi</h3>
+<ol class="small" style="line-height:1.8;padding-left:1.1rem">
+  <li><b>financing-service</b> uchun “Ishdan chiqarish (503)” ni tanlang.</li>
+  <li><a href="{{ url_for('sales_page') }}">Sotuvlar</a> sahifasida <b>kredit</b> bilan sotuv boshlang.</li>
+  <li>Natija: xato xabari, avtomobil yana <b>sotuvda</b>, sotuv <b>bekor_qilingan</b>.</li>
+  <li>Sotuv sahifasida <b>Saga izi</b> → “KOMPENSATSIYA” qadami ko'rinadi.</li>
+  <li>Shu yerda so'rov izini oching — financing 503 qizil rangda.</li>
+  <li>Rejimni “Normal” ga qaytaring.</li>
+</ol>
+<p class="small muted">“Sekinlashtirish” — timeout va qayta urinish (retry) xatti-harakatini ko'rsatadi. Production muhitida chaos o'chirilgan (<code>APP_ENV=production</code>).</p>
+<div class="divider"></div>
+<h3>Prometheus</h3><p class="small muted">Har bir servis: <code>GET /metrics</code> — <code>http_requests_total</code>, <code>http_request_duration_ms</code> (histogram). Grafana'ga ulash uchun tayyor.</p>
+</aside>
+</div>
+{% endblock %}

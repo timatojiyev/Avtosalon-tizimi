@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% block title %}Avtomobillar{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Avtomobillar va sotuvlar</h1><p>Sotuv jarayoni: boshlash → (kredit so'rash → tasdiqlash) → yakunlash. Har bir qadam <code>Sale</code> agregatida tekshiriladi.</p></div>
+  <a class="btn secondary" href="{{ url_for('tests_page') }}">▶ Testlarni ishga tushirish</a></div>
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="card stat"><div class="label">Sotuvda</div><div class="value">{{ stats.available }} / {{ stats.cars }}</div></div>
+  <div class="card stat"><div class="label">Jarayondagi sotuvlar</div><div class="value">{{ stats.active }}</div></div>
+  <div class="card stat"><div class="label">Yakunlangan</div><div class="value">{{ stats.completed }}</div></div>
+  <div class="card stat"><div class="label">Sotuv hajmi</div><div class="value" style="font-size:1.3rem">{{ stats.revenue|som }}</div></div>
+</div>
+<div class="grid grid-4" style="margin-bottom:1.5rem">
+{% for c in cars %}
+  <div class="card card-body car">
+    <div class="pic">🚗</div>
+    <div class="row between"><span class="ttl">{{ c.make }} {{ c.model }}</span><span class="badge {{ CAR_STYLE[c.status] }}">{{ c.status.value }}</span></div>
+    <div class="small muted">{{ c.year }} · <span class="mono">{{ c.vin }}</span></div>
+    <div class="row between"><b>{{ c.price|som }}</b>
+      {% if c.status.value == 'sotuvda' %}<a class="btn sm" href="{{ url_for('new_sale', car_id=c.id) }}">Sotish</a>{% endif %}</div>
+  </div>
+{% endfor %}
+</div>
+<section class="card">
+  <div class="card-head"><h2>Sotuvlar</h2><span class="small muted">{{ sales|length }} ta</span></div>
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>ID</th><th>Avtomobil</th><th>Mijoz</th><th>To'lov</th><th class="num">Narx</th><th>Holat</th></tr></thead>
+    <tbody>{% for s in sales %}<tr>
+      <td><a class="mono" href="{{ url_for('sale_detail', sale_id=s.id) }}">{{ s.id }}</a></td><td>{{ s.car.title }}</td><td>{{ s.customer_name }}</td>
+      <td>{{ s.payment_method.value }}</td><td class="num">{{ s.price|som }}</td><td><span class="badge {{ STATUS_STYLE[s.status.value] }}">{{ s.status.label }}</span></td></tr>
+    {% else %}<tr><td colspan="6"><div class="empty"><div class="icon">🧾</div>Hali sotuv yo'q — avtomobil kartochkasidagi “Sotish” tugmasini bosing</div></td></tr>{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endblock %}

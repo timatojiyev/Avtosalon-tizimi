@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% block title %}Hodisalar{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Hodisalar va xabarnomalar</h1><p><code>sales-service</code> → Redis Stream <code>avtosalon.events</code> → <code>notification-worker</code> (consumer group). Asinxron: sotuv javobi xabar yuborilishini kutmaydi.</p></div><a class="btn secondary" href="">↻ Yangilash</a></div>
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="card stat"><div class="label">Qayta ishlangan</div><div class="value">{{ stats.get('processed', 0) }}</div></div>
+  <div class="card stat"><div class="label">Yakunlangan sotuvlar summasi</div><div class="value" style="font-size:1.25rem">{{ stats.get('revenue', 0)|som }}</div></div>
+  <div class="card stat"><div class="label">Consumer</div><div class="value" style="font-size:.95rem">{{ stats.get('consumer', '—') }}</div></div>
+  <div class="card stat"><div class="label">Worker nusxasi</div><div class="value mono" style="font-size:.95rem">{{ stats.get('instance', '—') }}</div></div>
+</div>
+<div class="split">
+  <section class="card"><div class="card-head"><h2>Mijozga yuborilgan xabarlar (SMS simulyatsiyasi)</h2></div>
+    <div class="card-body"><ul class="timeline">{% for n in items %}
+      <li><div class="small faint mono">{{ (n.at or '')[11:19] }} · {{ n.type }} · {{ n.ref }} · worker={{ n.worker }}</div><div>📱 <b>{{ n.to }}</b>: {{ n.text }}</div></li>
+    {% else %}<li class="muted">Hali hodisa yo'q — sotuv yarating</li>{% endfor %}</ul></div></section>
+  <aside class="card card-body"><h3>Hodisa turlari</h3><table class="table small"><tbody>
+    {% for t in ['sale.initiated', 'sale.financing_approved', 'sale.financing_rejected', 'sale.completed', 'sale.cancelled'] %}<tr><td class="mono">{{ t }}</td><td class="num">{{ stats.get('events', {}).get(t, 0) }}</td></tr>{% endfor %}
+  </tbody></table><p class="small muted" style="margin-top:.75rem">Worker o'chiq bo'lsa ham hodisalar Redis'da saqlanadi va u qayta ishga tushganda o'qiladi (at-least-once). Dublikatlar hodisa ID'si bo'yicha tashlab yuboriladi.</p></aside>
+</div>
+{% endblock %}

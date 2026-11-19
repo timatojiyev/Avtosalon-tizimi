@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% block title %}Testlar{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Testlar</h1><p>Testlar alohida jarayonda <code>pytest</code> bilan ishga tushiriladi, natija JUnit XML'dan o'qiladi.</p></div>
+  <form method="post" action="{{ url_for('tests_run') }}" class="row"><input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button class="btn" name="selection" value="sale">▶ test_sale.py</button><button class="btn secondary" name="selection" value="all">▶ Barcha testlar</button></form></div>
+{% if result %}
+<div class="grid grid-4" style="margin-bottom:1rem">
+  <div class="card stat"><div class="label">O'tdi</div><div class="value passed">{{ result.passed }}</div></div>
+  <div class="card stat"><div class="label">Yiqildi</div><div class="value {{ 'failed' if result.failed }}">{{ result.failed }}</div></div>
+  <div class="card stat"><div class="label">Vaqt</div><div class="value">{{ result.duration }} s</div></div>
+  <div class="card stat"><div class="label">Coverage</div><div class="value">{{ (result.coverage.total ~ '%') if result.coverage else '—' }}</div><div class="hint">{{ '' if result.has_cov else 'pytest-cov o\'rnatilmagan' }}</div></div>
+</div>
+{% for group, cases in result.groups.items() %}
+<section class="card" style="margin-bottom:.75rem"><div class="card-head"><h3 class="mono" style="font-size:.9rem">{{ group }}</h3><span class="small {{ 'failed' if cases|selectattr('status', 'equalto', 'failed')|list else 'passed' }}">{{ cases|selectattr('status', 'equalto', 'passed')|list|length }}/{{ cases|length }}</span></div>
+  <ul class="list-plain card-body small">{% for c in cases %}<li class="row between"><span><span class="{{ c.status }}">{{ '✓' if c.status == 'passed' else '✗' if c.status == 'failed' else '○' }}</span> <span class="mono">{{ c.name }}</span>
+    {% if c.message %}<div class="failed" style="white-space:pre-wrap">{{ c.message[:300] }}</div>{% endif %}</span><span class="faint">{{ (c.time * 1000)|round(1) }} ms</span></li>{% endfor %}</ul></section>
+{% endfor %}
+{% if result.coverage %}<section class="card" style="margin-bottom:.75rem"><div class="card-head"><h3>Coverage (fayllar)</h3></div><div class="table-wrap"><table class="table"><tbody>
+  {% for f, p in result.coverage.files %}<tr><td class="mono small">{{ f }}</td><td style="width:40%"><div class="progress"><span style="width:{{ p }}%"></span></div></td><td class="num">{{ p }}%</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}
+<details class="card"><summary class="card-head" style="cursor:pointer">pytest chiqishi (exit code {{ result.returncode }})</summary><pre style="border-radius:0;white-space:pre-wrap">{{ result.output }}</pre></details>
+{% else %}
+<div class="card empty" style="padding:3rem 1rem"><div class="icon">🧪</div>Tugmani bosing — <code>tests/unit/test_domain/test_sale.py</code> yoki barcha testlar ishga tushadi.</div>
+{% endif %}
+{% endblock %}

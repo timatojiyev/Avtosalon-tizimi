@@ -1,0 +1,42 @@
+{% extends "base.html" %}{% block title %}Panel{% endblock %}
+{% block content %}
+{% set done = sale_stats.get('yakunlangan', {'count': 0, 'value': 0}) %}
+{% set open_n = sale_stats.get('boshlangan', {'count': 0})['count'] + sale_stats.get('kredit_tasdiqlangan', {'count': 0})['count'] %}
+{% set up = health|selectattr('up')|selectattr('ready')|list|length %}
+<div class="page-head"><div><h1>Xush kelibsiz, {{ user.name.split(' ')[0] }}!</h1><p>Tizim holati, asosiy ko'rsatkichlar va oxirgi sotuvlar. Ma'lumotlar har bir servisdan jonli olinadi.</p></div>
+  <div class="row">{% if can('ops') %}<form method="post" action="{{ url_for('demo') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="back" value="{{ url_for('dashboard') }}"><button class="btn secondary">✨ Demo ma'lumot</button></form>{% endif %}
+  <a class="btn secondary" href="">↻ Yangilash</a></div></div>
+
+<div class="kpis">
+  <div class="card kpi green"><div class="label">Servislar</div><div class="value">{{ up }} / {{ health|length }}</div><div class="hint">{{ 'hammasi ishlayapti' if up == health|length else 'e\'tibor bering!' }}</div></div>
+  <div class="card kpi"><div class="label">Tushum</div><div class="value">{{ done.value|short }}</div><div class="hint">{{ done.count }} ta yakunlangan sotuv</div></div>
+  <div class="card kpi blue"><div class="label">Jarayonda</div><div class="value">{{ open_n }}</div><div class="hint">boshlangan / kredit tasdiqlangan</div></div>
+  <div class="card kpi violet"><div class="label">Sotuvda</div><div class="value">{{ car_stats.get('sotuvda', {'count': 0})['count'] }}</div><div class="hint">{{ car_stats.get('sotuvda', {'value': 0})['value']|short }} so'mlik</div></div>
+</div>
+
+<div class="grid" style="grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:1rem">
+{% for h in health %}
+  {% set ok = h.up and h.ready %}
+  <div class="card card-body svc {{ 'chaos' if h.chaos != 'off' else ('up' if ok else 'down') }}">
+    <div class="row between"><b style="font-size:.9rem">{{ h.name }}</b>
+      {% if h.chaos != 'off' %}<span class="badge violet">chaos: {{ h.chaos }}</span>{% else %}<span class="badge {{ 'success' if ok else 'danger' }}">{{ 'ishlayapti' if ok else ('DB yo\'q' if h.up else 'ishlamayapti') }}</span>{% endif %}</div>
+    <dl class="kv small" style="margin-top:.5rem"><dt>Baza</dt><dd>{{ h.db }}</dd><dt>Versiya</dt><dd>{{ h.version }}</dd>
+      <dt>So'rovlar</dt><dd>{{ h.requests if h.requests is not none else '—' }}{% if h.error_rate %} · <span style="color:var(--danger)">{{ h.error_rate }}% xato</span>{% endif %}</dd>
+      <dt>Uptime</dt><dd>{{ (h.uptime ~ ' s') if h.uptime is not none else '—' }}</dd></dl>
+    {% if h.error %}<div class="small" style="color:var(--danger);margin-top:.4rem">{{ h.error }}</div>{% endif %}
+  </div>
+{% endfor %}
+</div>
+<div class="grid grid-2">
+  <section class="card"><div class="card-head"><h2>Avtomobillar ombori</h2><span class="small muted">car-service /stats</span></div><div class="card-body">
+    {% set total = car_stats.values()|sum(attribute='count') %}
+    {% for st in ['sotuvda', 'band', 'sotilgan'] %}{% set v = car_stats.get(st, {'count': 0, 'value': 0}) %}
+      <div style="margin-bottom:.7rem"><div class="row between small"><span><span class="badge {{ CAR_STYLE[st] }}">{{ st }}</span></span><b>{{ v.count }} ta · {{ v.value|som }}</b></div>
+      <div class="progress"><span style="width:{{ (v.count / total * 100) if total else 0 }}%"></span></div></div>{% endfor %}
+  </div></section>
+  <section class="card"><div class="card-head"><h2>Oxirgi sotuvlar</h2>{% if can('sales:read') %}<a class="small" href="{{ url_for('sales_page') }}">Barchasi →</a>{% endif %}</div>
+    <div class="table-wrap"><table class="table"><tbody>{% for s in recent %}<tr><td><a class="mono" href="{{ url_for('sale_detail', sale_id=s.id) }}">{{ s.ref }}</a></td><td>{{ s.car_title }}<div class="small faint">{{ s.customer_name }}</div></td>
+      <td><span class="badge {{ SALE_STYLE.get(s.status, '') }}">{{ STATUS_LABEL.get(s.status, s.status) }}</span></td><td class="num">{{ s.price|som }}</td></tr>
+    {% else %}<tr><td><div class="empty small">Sotuv yo'q</div></td></tr>{% endfor %}</tbody></table></div></section>
+</div>
+{% endblock %}

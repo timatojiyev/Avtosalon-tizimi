@@ -1,0 +1,205 @@
+# =====================================================================
+#  Avtosalon Tizimi — ko'p servisli Python tizimi (Mavzu №28–29)
+#
+#  gateway (nginx) ─► web ─► car | customer | sales | financing ─► har birining o'z PostgreSQL'i
+#                                       sales ─► Redis Streams ─► notification-worker (consumer group)
+#
+#  Ishga tushirish:     docker compose up -d --build          (+ docker-compose.override.yml avtomatik)
+#  Production:          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#  Masshtablash:        docker compose -f docker-compose.yml up -d --scale car-service=3 --scale notification-worker=2
+#  Qo'shimcha vositalar: docker compose --profile tools up -d   (Adminer :8081, Dozzle loglar :8082)
+#  Kirish:              http://localhost:8080
+# =====================================================================
+name: avtosalon
+
+x-postgres: &postgres
+  image: postgres:16-alpine
+  restart: unless-stopped
+  networks: [data]
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+    interval: 5s
+    timeout: 3s
+    retries: 10
+    start_period: 10s
+
+x-service: &service
+  restart: unless-stopped
+  networks: [backend, data]
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"]
+    interval: 10s
+    timeout: 5s
+    retries: 6
+    start_period: 20s
+
+x-common-env: &common-env
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  LOG_FORMAT: ${LOG_FORMAT:-json}
+  APP_ENV: ${APP_ENV:-development}
+
+# CI pipeline image'ga versiya, commit SHA va build vaqtini yozadi (/health orqali ko'rinadi)
+x-build-args: &build-args
+  APP_VERSION: ${TAG:-dev}
+  GIT_SHA: ${GIT_SHA:-local}
+  BUILD_DATE: ${BUILD_DATE:-unknown}
+
+services:
+  # ============================ Infratuzilma ============================
+  car-db:
+    <<: *postgres
+    environment: { POSTGRES_DB: car_db, POSTGRES_USER: "${CAR_DB_USER:-car_user}", POSTGRES_PASSWORD: "${CAR_DB_PASSWORD:-car_secret}" }
+    volumes: [car_data:/var/lib/postgresql/data]
+
+  customer-db:
+    <<: *postgres
+    environment: { POSTGRES_DB: customer_db, POSTGRES_USER: "${CUSTOMER_DB_USER:-customer_user}", POSTGRES_PASSWORD: "${CUSTOMER_DB_PASSWORD:-customer_secret}" }
+    volumes: [customer_data:/var/lib/postgresql/data]
+
+  sales-db:
+    <<: *postgres
+    environment: { POSTGRES_DB: sales_db, POSTGRES_USER: "${SALES_DB_USER:-sales_user}", POSTGRES_PASSWORD: "${SALES_DB_PASSWORD:-sales_secret}" }
+    volumes: [sales_data:/var/lib/postgresql/data]
+
+  financing-db:
+    <<: *postgres
+    environment: { POSTGRES_DB: financing_db, POSTGRES_USER: "${FINANCING_DB_USER:-financing_user}", POSTGRES_PASSWORD: "${FINANCING_DB_PASSWORD:-financing_secret}" }
+    volumes: [financing_data:/var/lib/postgresql/data]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]   # AOF — hodisalar restartda yo'qolmaydi
+    restart: unless-stopped
+    networks: [backend]
+    volumes: [redis_data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ============================== Servislar ==============================
+  car-service:
+    <<: *service
+    build: { context: ., dockerfile: services/car-service/Dockerfile, args: *build-args }
+    image: ${REGISTRY:-avtosalon}/car-service:${TAG:-latest}
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgresql://${CAR_DB_USER:-car_user}:${CAR_DB_PASSWORD:-car_secret}@car-db:5432/car_db
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-1}
+    depends_on:
+      car-db: { condition: service_healthy }
+
+  customer-service:
+    <<: *service
+    build: { context: ., dockerfile: services/customer-service/Dockerfile, args: *build-args }
+    image: ${REGISTRY:-avtosalon}/customer-service:${TAG:-latest}
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgresql://${CUSTOMER_DB_USER:-customer_user}:${CUSTOMER_DB_PASSWORD:-customer_secret}@customer-db:5432/customer_db
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-1}
+    depends_on:
+      customer-db: { condition: service_healthy }
+
+  financing-service:
+    <<: *service
+    build: { context: ., dockerfile: services/financing-service/Dockerfile, args: *build-args }
+    image: ${REGISTRY:-avtosalon}/financing-service:${TAG:-latest}
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgresql://${FINANCING_DB_USER:-financing_user}:${FINANCING_DB_PASSWORD:-financing_secret}@financing-db:5432/financing_db
+    depends_on:
+      financing-db: { condition: service_healthy }
+
+  sales-service:
+    <<: *service
+    build: { context: ., dockerfile: services/sales-service/Dockerfile, args: *build-args }
+    image: ${REGISTRY:-avtosalon}/sales-service:${TAG:-latest}
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgresql://${SALES_DB_USER:-sales_user}:${SALES_DB_PASSWORD:-sales_secret}@sales-db:5432/sales_db
+      CAR_SERVICE_URL: http://car-service:8000
+      CUSTOMER_SERVICE_URL: http://customer-service:8000
+      FINANCING_SERVICE_URL: http://financing-service:8000
+      EVENT_BUS_URL: redis://redis:6379/0
+    depends_on:
+      sales-db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      car-service: { condition: service_healthy }
+      customer-service: { condition: service_healthy }
+      financing-service: { condition: service_healthy }
+
+  notification-worker:
+    <<: *service
+    networks: [backend]
+    build: { context: ., dockerfile: services/notification-worker/Dockerfile, args: *build-args }
+    image: ${REGISTRY:-avtosalon}/notification-worker:${TAG:-latest}
+    environment:
+      <<: *common-env
+      EVENT_BUS_URL: redis://redis:6379/0
+    depends_on:
+      redis: { condition: service_healthy }
+
+  web:
+    build: { context: ., dockerfile: web/Dockerfile, args: *build-args }
+    image: ${REGISTRY:-avtosalon}/web:${TAG:-latest}
+    restart: unless-stopped
+    networks: [backend]
+    environment:
+      CAR_SERVICE_URL: http://car-service:8000
+      CUSTOMER_SERVICE_URL: http://customer-service:8000
+      SALES_SERVICE_URL: http://sales-service:8000
+      FINANCING_SERVICE_URL: http://financing-service:8000
+      NOTIFIER_URL: http://notification-worker:8000
+      APP_ENV: ${APP_ENV:-development}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    depends_on:
+      sales-service: { condition: service_healthy }
+      notification-worker: { condition: service_healthy }
+
+  # ====================== API Gateway — yagona kirish ======================
+  gateway:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    networks: [frontend, backend]
+    ports: ["${GATEWAY_PORT:-8080}:80"]
+    volumes: ["./gateway/nginx.conf:/etc/nginx/nginx.conf:ro"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/gateway/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    depends_on:
+      web: { condition: service_healthy }
+
+  # ================== Profil: tools (faqat --profile tools bilan) ==================
+  adminer:
+    image: adminer:4
+    profiles: [tools]
+    networks: [frontend, data]
+    ports: ["8081:8080"]
+    environment: { ADMINER_DEFAULT_SERVER: sales-db }
+
+  dozzle:
+    image: amir20/dozzle:latest
+    profiles: [tools]
+    networks: [frontend]
+    ports: ["8082:8080"]
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock:ro"]
+
+networks:
+  frontend: {}
+  backend: {}
+  data:
+    internal: true
+
+volumes:
+  car_data:
+  customer_data:
+  sales_data:
+  financing_data:
+  redis_data:

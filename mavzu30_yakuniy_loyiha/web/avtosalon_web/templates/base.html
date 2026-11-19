@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Avtosalon{% endblock %} · Avtosalon Tizimi</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='final.css') }}">
+</head>
+<body class="shell">
+{% set nav = [
+  ('Biznes', [('dashboard', 'Panel', '◧', 'dashboard'), ('cars_page', 'Avtomobillar', '🚗', 'cars:read'), ('customers_page', 'Mijozlar', '👤', 'customers:read'),
+              ('sales_page', 'Sotuvlar', '🧾', 'sales:read'), ('financing_page', 'Kreditlar', '🏦', 'financing:read')]),
+  ('Tahlil', [('reports', 'Hisobotlar', '📊', 'reports')]),
+  ('Operatsiya', [('ops', 'Kuzatuv va chaos', '📡', 'ops'), ('events_page', 'Hodisalar', '⚡', 'ops'), ('release_page', 'CI/CD va reliz', '🚀', 'ops'),
+                  ('audit_page', 'Audit jurnali', '🛡', 'ops')]),
+  ('Loyiha', [('docs_page', 'Hujjatlar va ADR', '📘', 'docs'), ('architecture', 'Arxitektura', '🧩', 'docs')]),
+] %}
+<aside class="side" id="side">
+  <a class="side-brand" href="{{ url_for('dashboard') }}"><span class="brand-mark">A</span><span><b>Avtosalon</b><small>Yakuniy loyiha · v{{ APP_VERSION }}</small></span></a>
+  {% for section, items in nav %}
+    {% set shown = [] %}{% for it in items if can(it[3]) %}{% set _ = shown.append(it) %}{% endfor %}
+    {% if shown %}<div class="side-sec">{{ section }}</div>
+    {% for ep, label, icon, perm in shown %}<a href="{{ url_for(ep) }}" class="side-link {{ 'active' if active == ep.replace('_page', '') or active == ep }}"><span class="ic">{{ icon }}</span>{{ label }}</a>{% endfor %}{% endif %}
+  {% endfor %}
+  <div class="side-foot small">
+    <div class="env env-{{ APP_ENV }}">{{ APP_ENV }}</div>
+    <div class="faint">nginx → web (BFF) → 4 servis · Redis Streams</div>
+  </div>
+</aside>
+<div class="main">
+  <header class="top">
+    <button class="btn ghost sm burger" onclick="document.getElementById('side').classList.toggle('open')" aria-label="Menyu">☰</button>
+    <div class="crumb">{% block crumb %}{{ self.title() }}{% endblock %}</div>
+    <span class="spacer"></span>
+    {% if user %}
+    <div class="who"><span class="avatar">{{ user.name[:1] }}</span><span><b>{{ user.name }}</b><small>{{ user.role_title }}</small></span></div>
+    <form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn secondary sm">Chiqish</button></form>
+    {% endif %}
+  </header>
+  <main class="content">
+    {% with messages = get_flashed_messages(with_categories=true) %}{% for cat, m in messages %}<div class="alert {{ cat }}">{{ m }}</div>{% endfor %}{% endwith %}
+    {% if error %}<div class="alert warning">⚠ {{ error }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="foot2"><span>Avtosalon Tizimi · mikroservislar · saga · event-driven · CI/CD</span><span class="mono faint">req {{ g.request_id }}</span></footer>
+</div>
+{% block scripts %}{% endblock %}
+</body></html>

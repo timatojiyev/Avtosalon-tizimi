@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% block title %}Tuzilish{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Loyiha va testlar tuzilishi</h1><p>Topshiriq №15: “Avtosalon Tizimi” uchun <code>tests/unit/test_domain/test_sale.py</code> — Sale aggregate testlari: sotuvni boshlash, kredit tasdiqlash, sotuvni yakunlash.</p></div></div>
+<div class="grid grid-2">
+<div class="card card-body"><h3>Papkalar</h3><pre>app/
+├── domain/        sale.py (Sale aggregate), car.py, value_objects.py, events.py
+├── application/   sales_service.py, ports.py
+├── infrastructure/memory.py
+└── web/           shu sayt
+tests/
+├── conftest.py               umumiy fixture'lar
+├── fixtures/sale_fixtures.py fabrikalar
+├── mocks/                    MockEventBus, MockCarRepository
+├── unit/test_domain/
+│   ├── <b>test_sale.py</b>          ← Topshiriq №15
+│   ├── test_car.py
+│   └── test_value_objects.py
+├── unit/test_application/test_sales_service.py
+└── integration/test_sales_api.py
+pytest.ini · .coveragerc · requirements-test.txt</pre></div>
+<div class="card card-body"><h3>test_sale.py tarkibi</h3><table class="table small"><tbody>
+<tr><td><code>TestInitiateSale</code></td><td>naqd/kredit, avtomobil band qilinishi, mavjud bo'lmagan avtomobil, boshlang'ich to'lov chegaralari (parametrize)</td></tr>
+<tr><td><code>TestFinancingRequest</code></td><td>kredit so'rash, noto'g'ri muddat/foiz</td></tr>
+<tr><td><code>TestFinancingApproval</code></td><td>tasdiqlash, annuitet oylik to'lov, kamroq summa tasdiqlanishi, foiz/muddat o'zgarishi</td></tr>
+<tr><td><code>TestFinancingRejection</code></td><td>rad etish, sabab majburiy, naqdga o'tish</td></tr>
+<tr><td><code>TestCompleteSale</code></td><td>yakunlash, yetarli bo'lmagan to'lov, qaytim, tasdiqlanmasdan yakunlab bo'lmaydi</td></tr>
+<tr><td><code>TestCancelSale</code></td><td>har bir holatdan bekor qilish, avtomobil bo'shatilishi</td></tr>
+<tr><td><code>TestSaleLifecycle</code></td><td>to'liq jarayon, hodisalar ketma-ketligi, yakuniy holatlar</td></tr></tbody></table></div>
+</div>
+{% endblock %}

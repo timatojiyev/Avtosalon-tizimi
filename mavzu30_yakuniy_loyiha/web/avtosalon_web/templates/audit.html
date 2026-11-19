@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block title %}Audit jurnali{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Audit jurnali</h1><p>Kim, qachon, nima qildi: kirish/chiqish, ma'lumot o'zgartirish, rad etilgan ruxsatlar, chaos va eksport. Oxirgi 500 yozuv xotirada; <code>AUDIT_LOG_PATH</code> berilsa JSONL faylga ham yoziladi.</p></div></div>
+<section class="card"><div class="table-wrap"><table class="table"><thead><tr><th>Vaqt (UTC)</th><th>Foydalanuvchi</th><th>Amal</th><th>Tafsilot</th><th>IP</th><th>Request ID</th></tr></thead><tbody>
+{% for a in items %}<tr><td class="small mono">{{ a.at[11:19] }}</td><td><b>{{ a.user }}</b></td>
+  <td><span class="badge {{ 'success' if a.ok else 'danger' }}">{{ a.action }}</span></td><td class="small">{{ a.detail }}</td><td class="small mono">{{ a.ip }}</td>
+  <td class="small mono">{% if a.request_id %}<a href="{{ url_for('trace', request_id=a.request_id) }}">{{ a.request_id }}</a>{% endif %}</td></tr>
+{% else %}<tr><td colspan="6"><div class="empty">Yozuv yo'q</div></td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}

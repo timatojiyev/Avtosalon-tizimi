@@ -1,0 +1,15 @@
+# Serverdagi deploy uchun qo'shimcha: image'lar registry'dan olinadi (serverda build qilinmaydi).
+#   REGISTRY=ghcr.io/<owner>/avtosalon TAG=1.2.0 \
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f deploy/docker-compose.deploy.yml up -d --no-build
+x-pull: &pull
+  pull_policy: always
+  labels:
+    avtosalon.release: "${TAG:-latest}"
+
+services:
+  car-service:         *pull
+  customer-service:    *pull
+  sales-service:       *pull
+  financing-service:   *pull
+  notification-worker: *pull
+  web:                 *pull

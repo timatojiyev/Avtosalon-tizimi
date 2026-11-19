@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% block title %}Arxitektura{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Docker Compose arxitekturasi</h1><p>4 ta servis, har birining <b>o'z PostgreSQL bazasi</b> (database-per-service). Servislar bir-birining bazasiga emas, faqat API'siga murojaat qiladi.</p></div></div>
+<div class="card card-body" style="margin-bottom:1rem"><div class="topo">
+  <div class="box web"><b>web</b> :8080 — boshqaruv paneli (frontend tarmog'i)</div>
+  <div class="arrow">↓ HTTP (backend tarmog'i)</div>
+  <div class="box svcb"><b>car-service</b>:8001</div><div class="box svcb"><b>customer-service</b>:8002</div><div class="box svcb"><b>sales-service</b>:8003<div class="small faint">→ car, customer, financing</div></div><div class="box svcb"><b>financing-service</b>:8004</div>
+  <div class="arrow">↓ depends_on: condition: service_healthy (data tarmog'i, tashqariga yopiq)</div>
+  <div class="box db"><b>car-db</b>postgres:16 · car_data</div><div class="box db"><b>customer-db</b>postgres:16 · customer_data</div><div class="box db"><b>sales-db</b>postgres:16 · sales_data</div><div class="box db"><b>financing-db</b>postgres:16 · financing_data</div>
+</div></div>
+<section class="card"><div class="card-head"><h2>docker-compose.yml</h2></div><pre style="border-radius:0 0 var(--radius) var(--radius);max-height:620px">{{ compose }}</pre></section>
+{% endblock %}

@@ -1,0 +1,120 @@
+# =====================================================================
+#  CI — har bir push va Pull Request'da: lint → test → konteyner integratsiya testi
+#  Muvaffaqiyatli bo'lsa (main yoki v* teg), CD workflow (cd.yml) ishga tushadi.
+# =====================================================================
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:                         # bir branch'ga ketma-ket push'da eski run bekor qilinadi
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  # ------------------------------------------------------------------ #
+  lint:
+    name: Lint (ruff) va konfiguratsiya tekshiruvi
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Ruff — kod uslubi va xatolar
+        run: ruff check . --output-format=github
+      - name: Ruff — formatlash (faqat ogohlantirish)
+        run: ruff format --check . || echo "::warning::ruff format talab qilinadi"
+      - name: Docker Compose fayllari to'g'riligi
+        run: |
+          docker compose -f docker-compose.yml config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
+          docker compose -f docker-compose.yml -f deploy/docker-compose.deploy.yml config --quiet
+      - name: Dockerfile lint (hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          recursive: true
+          failure-threshold: error
+
+  # ------------------------------------------------------------------ #
+  test:
+    name: Testlar (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    needs: lint
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - name: pytest + coverage
+        run: |
+          pytest tests -q --junitxml=reports/junit.xml \
+                 --cov=libs --cov=services --cov=web --cov-report=xml:reports/coverage.xml --cov-report=term \
+                 --cov-fail-under=75
+      - name: Test natijalarini saqlash
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-py${{ matrix.python }}
+          path: reports/
+          retention-days: 14
+      - name: Xulosa
+        if: always()
+        run: |
+          echo "### Testlar — Python ${{ matrix.python }}" >> "$GITHUB_STEP_SUMMARY"
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import xml.etree.ElementTree as ET
+          r = ET.parse("reports/junit.xml").getroot()
+          s = r if r.tag == "testsuite" else r.find("testsuite")
+          print(f"- jami: {s.get('tests')}, xato: {s.get('failures')}, istisno: {s.get('errors')}, o'tkazilgan: {s.get('skipped')}")
+          PY
+
+  # ------------------------------------------------------------------ #
+  integration:
+    name: Integratsiya (docker compose up + smoke test)
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 25
+    env:
+      TAG: ci-${{ github.run_number }}
+      GIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Image'larni yig'ish
+        run: docker compose -f docker-compose.yml build
+      - name: Tizimni ko'tarish
+        run: docker compose -f docker-compose.yml up -d
+      - name: Sog'lomlikni kutish
+        run: scripts/wait-healthy.sh 240
+      - name: Smoke test (gateway orqali to'liq sotuv oqimi)
+        run: scripts/smoke-test.sh http://localhost:8080
+      - name: Loglar (xato bo'lsa)
+        if: failure()
+        run: docker compose -f docker-compose.yml logs --no-color --tail=200
+      - name: Tozalash
+        if: always()
+        run: docker compose -f docker-compose.yml down -v

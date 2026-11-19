@@ -1,0 +1,33 @@
+{% extends "base.html" %}{% block title %}{{ current.title }}{% endblock %}
+{% block content %}
+<style>
+  .docs{display:grid;grid-template-columns:260px minmax(0,1fr);gap:1rem;align-items:start}
+  @media(max-width:900px){.docs{grid-template-columns:1fr}}
+  .doc-nav a{display:block;padding:.5rem .7rem;border-radius:8px;color:var(--text-2);font-size:.88rem}
+  .doc-nav a.active{background:var(--accent-50);color:var(--accent-600);font-weight:600}
+  .doc-nav .sec{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin:.8rem .7rem .3rem}
+  .md{line-height:1.65}.md h1{font-size:1.6rem;margin:0 0 1rem}.md h2{margin:2rem 0 .7rem;padding-top:.5rem;border-top:1px solid var(--border)}
+  .md h3{margin:1.4rem 0 .5rem}.md table{width:100%;border-collapse:collapse;margin:.8rem 0;font-size:.9rem}
+  .md th,.md td{border:1px solid var(--border);padding:.45rem .65rem;text-align:left;vertical-align:top}.md th{background:var(--surface-2)}
+  .md code{background:var(--muted-bg);padding:.1rem .3rem;border-radius:4px}.md pre code{background:none;padding:0}
+  .md blockquote{margin:0 0 1rem;padding:.6rem 1rem;border-left:4px solid var(--accent);background:var(--accent-50);border-radius:0 8px 8px 0}
+  .md .mermaid{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem;margin:1rem 0;text-align:center}
+</style>
+<div class="docs">
+  <aside class="card card-body doc-nav" style="position:sticky;top:80px">
+    <div class="sec">Hujjatlar</div>
+    {% for d in index if not d.key[0].isdigit() %}<a href="{{ url_for('docs_page', key=d.key) }}" class="{{ 'active' if d.key == current.key }}">{{ d.title }}</a>{% endfor %}
+    <div class="sec">Arxitektura qarorlari (ADR)</div>
+    {% for d in index if d.key[0].isdigit() %}<a href="{{ url_for('docs_page', key=d.key) }}" class="{{ 'active' if d.key == current.key }}">{{ d.title.replace('ADR-', '') }}</a>{% endfor %}
+  </aside>
+  <article class="card card-body md" id="doc">{{ html|safe }}</article>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  // Diagrammalar: internet bo'lsa Mermaid chizadi; bo'lmasa diagramma matni ko'rinishida qoladi.
+  if (window.mermaid) { mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict' }); mermaid.run({ querySelector: '.mermaid' }); }
+  else document.querySelectorAll('.mermaid').forEach(el => { el.style.whiteSpace = 'pre'; el.style.textAlign = 'left'; el.style.fontFamily = 'var(--mono)'; el.style.fontSize = '.8rem'; });
+</script>
+{% endblock %}

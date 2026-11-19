@@ -1,0 +1,40 @@
+{% extends "base.html" %}{% block title %}Hisobotlar{% endblock %}
+{% block content %}
+{% set k = rep.kpi %}
+<div class="page-head"><div><h1>Savdo hisobotlari</h1><p>sales-, car- va financing-service ma'lumotlari parallel yig'iladi (BFF agregatsiyasi). Diagrammalar serverda SVG ko'rinishida chiziladi.</p></div>
+  <div class="row">
+    {% if can('ops') %}<form method="post" action="{{ url_for('demo') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="back" value="{{ url_for('reports') }}"><button class="btn secondary">✨ Demo ma'lumot</button></form>{% endif %}
+    <a class="btn" href="{{ url_for('sales_csv') }}">⬇ CSV (Excel)</a></div></div>
+
+<div class="kpis six">
+  <div class="card kpi"><div class="label">Tushum</div><div class="value">{{ k.revenue|short }}</div><div class="hint">{{ k.deals }} ta yakunlangan sotuv</div></div>
+  <div class="card kpi blue"><div class="label">O'rtacha chek</div><div class="value">{{ k.avg_check|short }}</div><div class="hint">so'm</div></div>
+  <div class="card kpi green"><div class="label">Konversiya</div><div class="value">{{ k.conversion }}%</div><div class="hint">yopilgan sotuvlardan yakunlangani</div></div>
+  <div class="card kpi violet"><div class="label">Kredit tasdiqlash</div><div class="value">{{ k.approval_rate }}%</div><div class="hint">o'rtacha PTI {{ k.avg_pti }}%</div></div>
+  <div class="card kpi"><div class="label">Jarayondagi sotuvlar</div><div class="value">{{ k.pipeline|short }}</div><div class="hint">boshlangan + kredit tasdiqlangan</div></div>
+  <div class="card kpi blue"><div class="label">Ombor</div><div class="value">{{ k.stock_value|short }}</div><div class="hint">{{ k.stock_count }} ta avtomobil sotuvda</div></div>
+</div>
+
+<div class="grid" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr);margin-bottom:1rem">
+  <section class="card"><div class="card-head"><h2>Kunlik tushum (14 kun)</h2><span class="small muted">yakunlangan sotuvlar</span></div><div class="card-body">{{ charts.daily }}</div></section>
+  <section class="card"><div class="card-head"><h2>To'lov usuli</h2></div><div class="card-body">{{ charts.methods }}
+    <ul class="legend"><li><i style="background:#c2410c"></i>Naqd<b>{{ rep.methods.get('naqd', 0) }}</b></li><li><i style="background:#2563eb"></i>Kredit<b>{{ rep.methods.get('kredit', 0) }}</b></li></ul></div></section>
+</div>
+
+<div class="grid grid-3" style="margin-bottom:1rem">
+  <section class="card"><div class="card-head"><h2>Markalar bo'yicha</h2></div><div class="card-body">
+    {% set peak = (rep.brands|map(attribute='1')|map(attribute='1')|max) if rep.brands else 1 %}
+    {% for brand, v in rep.brands %}<div class="hbar"><b>{{ brand }}</b><div class="track"><span style="width:{{ v[1] / peak * 100 }}%"></span></div><span class="num small">{{ v[0] }} ta · {{ v[1]|short }}</span></div>
+    {% else %}<div class="empty small">Hali yakunlangan sotuv yo'q</div>{% endfor %}</div></section>
+  <section class="card"><div class="card-head"><h2>Sotuv voronkasi</h2></div><div class="card-body funnel">
+    {% set top = rep.funnel[0][1] or 1 %}
+    {% for label, n in rep.funnel %}<div class="step"><div class="bar" style="width:{{ [n / top * 100, 12]|max }}%">{{ n }}</div><span class="small">{{ label }}</span></div>{% endfor %}</div></section>
+  <section class="card"><div class="card-head"><h2>Holatlar</h2></div><div class="card-body">{{ charts.status }}
+    <ul class="legend">{% for key, color in [('yakunlangan', '#c2410c'), ('kredit_tasdiqlangan', '#2563eb'), ('boshlangan', '#16a34a'), ('kredit_rad_etilgan', '#7c3aed'), ('bekor_qilingan', '#db2777')] %}
+      <li><i style="background:{{ color }}"></i>{{ STATUS_LABEL[key] }}<b>{{ rep.status.get(key, 0) }}</b></li>{% endfor %}</ul></div></section>
+</div>
+
+<section class="card"><div class="card-head"><h2>Eng faol mijozlar</h2><span class="small muted">yakunlangan xaridlar soni</span></div>
+  <div class="table-wrap"><table class="table"><tbody>{% for name, n in rep.top_customers %}<tr><td>{{ loop.index }}</td><td><b>{{ name }}</b></td><td class="num">{{ n }} ta</td></tr>
+  {% else %}<tr><td><div class="empty small">Ma'lumot yo'q — “Demo ma'lumot” tugmasini bosing yoki sotuv yarating</div></td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}

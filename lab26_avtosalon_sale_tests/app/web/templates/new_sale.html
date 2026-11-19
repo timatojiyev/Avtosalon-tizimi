@@ -1,0 +1,28 @@
+{% extends "base.html" %}{% block title %}Sotuvni boshlash{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Sotuvni boshlash</h1><p>{{ car.title }} · <span class="mono">{{ car.vin }}</span></p></div><a class="btn secondary" href="{{ url_for('index') }}">← Orqaga</a></div>
+<div class="split">
+  <form class="card" method="post" action="{{ url_for('create_sale') }}" id="f">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="car_id" value="{{ car.id }}">
+    <div class="card-body">
+      <div class="field"><label>Mijoz F.I.Sh.</label><input class="input" name="customer_name" value="{{ form.get('customer_name', '') }}" placeholder="Aziz Karimov" required></div>
+      <div class="field"><span class="label">To'lov usuli</span><div class="row">
+        <label class="checkbox"><input type="radio" name="method" value="naqd" {{ 'checked' if form.get('method') != 'kredit' }}> Naqd (to'liq summa)</label>
+        <label class="checkbox"><input type="radio" name="method" value="kredit" {{ 'checked' if form.get('method') == 'kredit' }}> Kredit</label></div></div>
+      <div class="field" id="dp"><label>Boshlang'ich to'lov (so'm)</label><input class="input" name="down_payment" inputmode="numeric" value="{{ form.get('down_payment', '') }}" placeholder="{{ (car.price.amount * MIN_PCT // 100) }}">
+        <span class="help">Kamida {{ MIN_PCT }}% — {{ (car.price.amount * MIN_PCT // 100)|som }}</span></div>
+    </div>
+    <div class="card-foot"><button class="btn" style="width:100%">Sotuvni boshlash (Sale.initiate)</button></div>
+  </form>
+  <aside class="card card-body"><h3>Hisob-kitob</h3><dl class="kv"><dt>Narx</dt><dd>{{ car.price|som }}</dd><dt>Boshlang'ich</dt><dd id="o-down">—</dd><dt>Kredit summasi</dt><dd id="o-fin">—</dd></dl>
+    <p class="small muted" style="margin-top:1rem">Sotuv boshlanganda avtomobil <b>band</b> holatiga o'tadi va boshqa mijozga sotilmaydi.</p></aside>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+(() => { const f = document.getElementById('f'), price = {{ car.price.amount }};
+  const fmt = n => n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + " so'm";
+  const upd = () => { const credit = f.method.value === 'kredit'; document.getElementById('dp').hidden = !credit;
+    const d = credit ? (parseInt(f.down_payment.value.replace(/\s/g,'') || 0)) : price;
+    document.getElementById('o-down').textContent = fmt(d); document.getElementById('o-fin').textContent = credit ? fmt(Math.max(0, price - d)) : '—'; };
+  f.addEventListener('input', upd); upd(); })();
+</script>{% endblock %}
